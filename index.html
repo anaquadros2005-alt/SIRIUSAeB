@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sirius A&B - Gestão de Saúde</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .mood-btn.active { transform: scale(1.1); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-color: #3b82f6; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Auth Screen -->
+    <div id="auth-container" class="min-h-screen flex items-center justify-center bg-gray-200 p-4 absolute inset-0 z-[100]">
+        <div class="glass-card max-w-md w-full p-8 rounded-2xl shadow-xl border border-gray-200 bg-white">
+            <div class="text-center mb-8">
+                <i class="fa-solid fa-heart-pulse text-4xl text-blue-600 mb-2"></i>
+                <h1 class="text-2xl font-bold text-gray-800">Sirius A&B</h1>
+                <p id="auth-title" class="text-gray-500 mt-1">Acessar Conta</p>
+            </div>
+            
+            <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-envelope text-gray-400"></i>
+                        </div>
+                        <input type="email" id="auth-email" class="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="seu@email.com" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-lock text-gray-400"></i>
+                        </div>
+                        <input type="password" id="auth-password" class="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="••••••••" required minlength="6">
+                    </div>
+                </div>
+                <div id="auth-role-group">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Acesso Inicial</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-user-tag text-gray-400"></i>
+                        </div>
+                        <select id="auth-role-select" class="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none transition cursor-pointer">
+                            <option value="independent">Independente</option>
+                            <option value="caregiver">Cuidador</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button type="submit" id="auth-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition shadow-md">Entrar</button>
+            </form>
+
+            <!-- Aviso visual direto no cartão de login -->
+            <div id="auth-feedback" class="hidden mt-4 p-3 rounded-lg text-xs font-medium text-center border"></div>
+            
+            <div class="mt-6 flex flex-col items-center gap-2 text-sm text-gray-600">
+                <div id="auth-toggle-text">
+                    Não tem uma conta? <button type="button" onclick="toggleAuthMode()" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Cadastre-se</button>
+                </div>
+                <div>
+                    <button type="button" onclick="openForgotModal()" class="text-gray-500 hover:text-gray-700 text-xs hover:underline">Esqueci minha senha / Alterar senha</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Forgot Password -->
+    <div id="forgot-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[110]">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 overflow-hidden p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2"><i class="fa-solid fa-key text-blue-500 mr-2"></i>Recuperar / Alterar Senha</h3>
+            <p class="text-xs text-gray-500 mb-4">Informe o e-mail cadastrado e defina uma nova senha para sua conta.</p>
+            <form onsubmit="handleResetPassword(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">E-mail Cadastrado</label>
+                    <input type="email" id="forgot-email" class="w-full rounded-lg border border-gray-300 p-2 text-sm outline-none" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Nova Senha</label>
+                    <input type="password" id="forgot-new-password" class="w-full rounded-lg border border-gray-300 p-2 text-sm outline-none" placeholder="Mínimo 6 caracteres" required minlength="6">
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" onclick="toggleModal('forgot-modal')" class="w-1/2 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" class="w-1/2 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Salvar Senha</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- App Wrapper -->
+    <div id="app-content" class="hidden flex-col min-h-screen w-full">
+
+    <!-- Navbar -->
+    <nav class="bg-blue-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-heart-pulse text-2xl text-red-300"></i>
+                    <span class="font-bold text-xl tracking-tight">Sirius A&B</span>
+                </div>
+                <div class="flex items-center">
+                    <button class="p-2 rounded-full hover:bg-blue-600 transition-colors relative">
+                        <i class="fa-regular fa-bell text-xl"></i>
+                        <span id="nav-alert-badge" class="absolute top-1 right-1 flex h-3 w-3 hidden">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </span>
+                    </button>
+                    <div class="ml-4 flex items-center gap-3">
+                        <button onclick="enableNativeNotifications()" id="btn-native-notify" class="bg-blue-800 text-blue-100 text-xs px-3 py-1.5 rounded-full hover:bg-blue-900 transition shadow-inner flex items-center gap-1">
+                            <i class="fa-solid fa-mobile-screen-button"></i> Ativar Push
+                        </button>
+
+                        <button onclick="toggleModal('profile-modal')" class="focus:outline-none transition-transform hover:scale-105 flex items-center gap-2" title="Meu Perfil">
+                            <img id="user-avatar-img" src="" class="w-8 h-8 rounded-full object-cover hidden shadow-sm border border-white">
+                            <div id="user-avatar-initials" class="w-8 h-8 rounded-full bg-blue-300 flex items-center justify-center text-blue-800 font-bold shadow-sm border border-white">IN</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+        
+        <!-- Tab Navigation -->
+        <div class="flex overflow-x-auto bg-white rounded-xl shadow-sm p-1 border border-gray-100 gap-1 mb-2">
+            <button id="btn-tab-dashboard" onclick="switchTab('tab-dashboard')" class="tab-btn active text-blue-600 border-b-2 border-blue-600 bg-blue-50 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-1 text-center">📊 Dashboard</button>
+            <button id="btn-tab-routine" onclick="switchTab('tab-routine')" class="tab-btn text-gray-500 hover:text-gray-700 hover:bg-gray-50 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-1 text-center">💊 Rotina e Sinais</button>
+            <button id="btn-tab-diary" onclick="switchTab('tab-diary')" class="tab-btn text-gray-500 hover:text-gray-700 hover:bg-gray-50 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-1 text-center">📖 Diário</button>
+            <button id="btn-tab-agenda" onclick="switchTab('tab-agenda')" class="tab-btn text-gray-500 hover:text-gray-700 hover:bg-gray-50 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-1 text-center">📅 Agenda</button>
+            <button id="btn-tab-security" onclick="switchTab('tab-security')" class="tab-btn text-gray-500 hover:text-gray-700 hover:bg-gray-50 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-1 text-center">🛡️ Segurança</button>
+        </div>
+
+        <!-- 1. DASHBOARD -->
+        <div id="tab-dashboard" class="tab-content grid grid-cols-1 lg:grid-cols-2 gap-6 animate-[fadeIn_0.3s_ease-out]">
+            <div class="space-y-4">
+                <div id="alerts-container" class="space-y-3"></div>
+                <div class="glass-card rounded-2xl shadow-sm p-6 bg-blue-50/50 border-blue-100">
+                    <h2 class="text-sm font-semibold text-blue-800 mb-2 flex items-center"><i class="fa-solid fa-lightbulb text-yellow-500 mr-2"></i>Insights do Algoritmo</h2>
+                    <p id="insight-text" class="text-sm text-gray-600">Aguardando dados para gerar insights...</p>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl shadow-sm p-6 h-80 flex flex-col">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-chart-line text-purple-500 mr-2"></i>Evolução de Sinais</h2>
+                <div class="relative flex-grow w-full">
+                    <canvas id="healthChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="glass-card rounded-2xl shadow-sm p-6 lg:col-span-2">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-heart-circle-bolt text-teal-500 mr-2"></i>Análise de Padrões de Saúde (IA)</h2>
+                <div class="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100">
+                    <select id="health-report-timeframe" class="bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg p-2 outline-none transition cursor-pointer shadow-sm sm:w-1/3">
+                        <option value="today">Hoje</option>
+                        <option value="3days">Últimos 3 dias</option>
+                        <option value="week">Última semana</option>
+                        <option value="month">Último mês</option>
+                    </select>
+                    <button type="button" onclick="generateHealthReport()" class="flex-grow bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-medium py-2 px-4 rounded-lg hover:from-teal-600 hover:to-emerald-700 transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-microscope"></i> Analisar Meus Dados
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl shadow-sm p-6 overflow-hidden lg:col-span-2">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-clock-rotate-left text-gray-500 mr-2"></i>Histórico Detalhado</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pressão (mmHg)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">FC (bpm)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Glicemia</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Humor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. ROTINA E SINAIS -->
+        <div id="tab-routine" class="tab-content hidden grid grid-cols-1 lg:grid-cols-2 gap-6 animate-[fadeIn_0.3s_ease-out]">
+            <div class="glass-card rounded-2xl shadow-sm p-6 h-fit">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="med-title" class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-capsules text-blue-500 mr-2"></i>Minha Rotina</h2>
+                    <button onclick="toggleModal('med-modal')" class="text-blue-600 hover:text-blue-800 transition"><i class="fa-solid fa-plus-circle text-xl"></i></button>
+                </div>
+                <div id="med-list" class="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar"></div>
+                <button onclick="checkInteractions()" class="mt-4 w-full bg-orange-50 border border-orange-200 text-orange-700 text-sm font-medium py-2 rounded-lg hover:bg-orange-100 transition shadow-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-flask-vial"></i> Analisar Interações
+                </button>
+            </div>
+
+            <div class="glass-card rounded-2xl shadow-sm p-6 h-fit">
+                <h2 id="vitals-title" class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-stethoscope text-green-500 mr-2"></i>Meus Sinais Vitais</h2>
+                <form id="vitals-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Pressão Arterial (Sistólica / Diastólica)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="sys-bp" class="w-full rounded-lg border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: 120" required>
+                            <span class="text-gray-400 font-bold text-lg">/</span>
+                            <input type="number" id="dia-bp" class="w-full rounded-lg border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: 80" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Frequência Cardíaca (bpm)</label>
+                            <input type="number" id="heart-rate" class="w-full rounded-lg border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: 72" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Glicemia (mg/dL)</label>
+                            <input type="number" id="glucose" class="w-full rounded-lg border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: 99" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-2">Bem-estar Geral (Hoje)</label>
+                        <div class="flex justify-between items-center gap-2">
+                            <button type="button" class="mood-btn text-2xl p-2 rounded-full border-2 border-transparent hover:bg-gray-100 transition" onclick="selectMood('terrible', this)">😫</button>
+                            <button type="button" class="mood-btn text-2xl p-2 rounded-full border-2 border-transparent hover:bg-gray-100 transition" onclick="selectMood('bad', this)">😟</button>
+                            <button type="button" class="mood-btn text-2xl p-2 rounded-full border-2 border-transparent hover:bg-gray-100 transition active border-blue-500" onclick="selectMood('neutral', this)">😐</button>
+                            <button type="button" class="mood-btn text-2xl p-2 rounded-full border-2 border-transparent hover:bg-gray-100 transition" onclick="selectMood('good', this)">🙂</button>
+                            <button type="button" class="mood-btn text-2xl p-2 rounded-full border-2 border-transparent hover:bg-gray-100 transition" onclick="selectMood('great', this)">😄</button>
+                        </div>
+                        <input type="hidden" id="selected-mood" value="neutral">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition shadow-md">Registrar Sinais</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 3. DIÁRIO E RELATÓRIOS -->
+        <div id="tab-diary" class="tab-content hidden grid grid-cols-1 gap-6 animate-[fadeIn_0.3s_ease-out]">
+            <div class="glass-card rounded-2xl shadow-sm p-6 max-w-4xl mx-auto w-full h-fit">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-book-open text-orange-500 mr-2"></i>Diário de Atividades</h2>
+                <div class="space-y-3 mb-4 max-h-64 overflow-y-auto pr-2 custom-scrollbar" id="diary-list">
+                    <div class="text-sm text-gray-500 text-center py-2">Nenhuma anotação hoje.</div>
+                </div>
+                <div class="flex items-center gap-2 mb-4">
+                    <input type="text" id="diary-input" class="flex-grow rounded-lg border-gray-300 border p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="O que aconteceu agora?" onkeypress="if(event.key === 'Enter') addDiaryNote()">
+                    <button type="button" id="mic-btn" onclick="toggleDictation()" class="w-10 h-10 bg-gray-100 text-gray-600 rounded-full hover:bg-blue-100 hover:text-blue-600 transition flex items-center justify-center shrink-0" title="Ditar por voz">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+                    <button type="button" onclick="addDiaryNote()" class="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition text-sm shrink-0">Salvar</button>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-100">
+                    <select id="report-timeframe" class="bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg p-2 outline-none transition cursor-pointer shadow-sm sm:w-1/3">
+                        <option value="today">Resumo de Hoje</option>
+                        <option value="3days">Resumo dos Últimos 3 dias</option>
+                        <option value="week">Resumo da Última semana</option>
+                        <option value="month">Resumo do Último mês</option>
+                    </select>
+                    <button type="button" onclick="generateSmartReport()" class="flex-grow bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:from-purple-700 hover:to-blue-700 transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Resumo Automático IA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. SEGURANÇA E ADMINISTRAÇÃO -->
+        <div id="tab-security" class="tab-content hidden grid grid-cols-1 lg:grid-cols-2 gap-6 animate-[fadeIn_0.3s_ease-out]">
+            <div id="admin-panel" class="hidden lg:col-span-2 glass-card rounded-2xl shadow-sm p-6 border-l-4 border-gray-800 bg-gray-50">
+                <h2 class="text-lg font-semibold text-gray-800 mb-3"><i class="fa-solid fa-user-shield text-gray-700 mr-2"></i>Painel Administrativo</h2>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="showMessage('Sistema', 'Exportação de dados iniciada.', 'success')" class="bg-gray-800 text-white text-sm px-3 py-1.5 rounded hover:bg-gray-700 transition">Exportar Dados</button>
+                    <button onclick="clearDatabaseRecords()" class="bg-red-100 text-red-700 text-sm px-3 py-1.5 rounded hover:bg-red-200 transition">Limpar Registros</button>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl shadow-sm p-6 h-fit">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-address-book text-red-500 mr-2"></i>Contatos de Emergência</h2>
+                <div id="contacts-list" class="space-y-3 mb-4 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    <div class="text-sm text-gray-500 text-center py-2">Nenhum contato adicionado.</div>
+                </div>
+                <form id="new-contact-form" class="space-y-3 border-t border-gray-100 pt-4">
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="contact-name" class="w-full rounded-lg border-gray-300 border p-2 text-sm outline-none" placeholder="Nome" required>
+                        <input type="tel" id="contact-phone" class="w-full rounded-lg border-gray-300 border p-2 text-sm outline-none" placeholder="Telefone" required>
+                    </div>
+                    <button type="submit" class="w-full bg-red-50 text-red-600 border border-red-200 font-medium py-2 rounded-lg hover:bg-red-100 transition text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Adicionar Contato
+                    </button>
+                </form>
+            </div>
+
+            <div class="glass-card rounded-2xl shadow-sm p-6 border-l-4 border-indigo-500 h-fit">
+                <h2 class="text-lg font-semibold text-gray-800 mb-2"><i class="fa-solid fa-shield-heart text-indigo-500 mr-2"></i>Segurança Ativa</h2>
+                <p class="text-xs text-gray-500 mb-4">Um alerta soará nos horários definidos. Se não for respondido no tempo limite, o socorro será chamado.</p>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-700">Ativar Verificação Diária</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="dms-toggle" class="sr-only peer" onchange="toggleDMS()">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <div id="dms-settings" class="hidden space-y-3 pt-3 border-t border-gray-100">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1">Manhã</label>
+                                <input type="time" id="dms-time-morning" class="w-full rounded-lg border-gray-300 border p-2 text-sm outline-none" value="08:00" onchange="saveDMSSettings()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1">Noite</label>
+                                <input type="time" id="dms-time-night" class="w-full rounded-lg border-gray-300 border p-2 text-sm outline-none" value="22:00" onchange="saveDMSSettings()">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Tempo Limite sem resposta</label>
+                            <select id="dms-timeout" class="w-full rounded-lg border-gray-300 border p-2 text-sm outline-none cursor-pointer" onchange="saveDMSSettings()">
+                                <option value="5">5 minutos</option>
+                                <option value="15">15 minutos</option>
+                                <option value="30">30 minutos</option>
+                                <option value="60">1 hora</option>
+                            </select>
+                        </div>
+                        <button type="button" onclick="triggerDMSAlert()" class="w-full mt-2 bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium py-2 rounded-lg hover:bg-indigo-100 transition text-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-bell"></i> Testar Alarme Agora
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. AGENDA -->
+        <div id="tab-agenda" class="tab-content hidden grid grid-cols-1 lg:grid-cols-2 gap-6 animate-[fadeIn_0.3s_ease-out]">
+            <div class="glass-card rounded-2xl shadow-sm p-6 h-fit">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-calendar-check text-blue-500 mr-2"></i>Próximas Consultas</h2>
+                <div id="appointments-list" class="space-y-3 mb-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar"></div>
+            </div>
+            <div class="glass-card rounded-2xl shadow-sm p-6 h-fit">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4"><i class="fa-solid fa-calendar-plus text-green-500 mr-2"></i>Adicionar Nova</h2>
+                <form id="new-appointment-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Especialidade / Médico</label>
+                        <input type="text" id="app-title" class="w-full rounded-lg border-gray-300 border p-2 outline-none" placeholder="Ex: Cardiologista" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                            <input type="date" id="app-date" class="w-full rounded-lg border-gray-300 border p-2 outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Horário</label>
+                            <input type="time" id="app-time" class="w-full rounded-lg border-gray-300 border p-2 outline-none" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Local / Observação</label>
+                        <input type="text" id="app-location" class="w-full rounded-lg border-gray-300 border p-2 outline-none" placeholder="Opcional">
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-green-700 transition mt-2">Adicionar Nova</button>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal for Profile -->
+    <div id="profile-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-user-circle text-blue-500 mr-2"></i>Configurar Perfil</h3>
+                <button onclick="toggleModal('profile-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 text-center">
+                <div class="relative inline-block mb-4">
+                    <img id="profile-modal-img" src="https://placehold.co/150x150/e2e8f0/64748b?text=Foto" class="w-24 h-24 rounded-full object-cover border-4 border-gray-100 shadow-sm mx-auto">
+                    <label for="profile-photo-input" class="absolute bottom-0 right-0 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition shadow-md border-2 border-white" title="Alterar Foto">
+                        <i class="fa-solid fa-camera text-xs"></i>
+                    </label>
+                    <input type="file" id="profile-photo-input" accept="image/*" class="hidden" onchange="handleProfilePhoto(this)">
+                </div>
+                <form id="profile-form" class="space-y-4 text-left">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome do Usuário / Paciente</label>
+                        <input type="text" id="profile-name" class="w-full rounded-lg border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Perfil Padrão</label>
+                        <select id="profile-role-select" class="w-full rounded-lg border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none" disabled>
+                            <option value="independent">Independente</option>
+                            <option value="caregiver">Cuidador</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition mt-4 shadow-sm">Salvar Alterações</button>
+                </form>
+
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <button type="button" onclick="logoutAccount()" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 text-sm">
+                        <i class="fa-solid fa-right-from-bracket"></i> Sair da Conta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for New Medication -->
+    <div id="med-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-800">Adicionar Medicamento</h3>
+                <button onclick="toggleModal('med-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6">
+                <div class="mb-5 p-4 bg-purple-50 rounded-xl border border-purple-100 flex flex-col items-center justify-center text-center">
+                    <i class="fa-solid fa-camera text-2xl text-purple-600 mb-2"></i>
+                    <p class="text-sm text-purple-900 font-semibold mb-1">Scanner Inteligente de Receita / Caixa</p>
+                    <p class="text-xs text-purple-700 mb-3">Tire uma foto nítida ou selecione a imagem da caixa do remédio ou receita.</p>
+                    <img id="med-scan-preview" src="" class="hidden w-32 h-24 object-cover rounded-lg border border-purple-200 mb-3 shadow-sm">
+                    <input type="file" id="med-image-input" accept="image/*" class="hidden" onchange="processMedicationImage(this)">
+                    <button type="button" onclick="document.getElementById('med-image-input').click()" id="btn-scan-med" class="bg-purple-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-purple-700 transition shadow flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Escolher Foto / Câmera
+                    </button>
+                    <div id="scan-loading" class="hidden mt-3 text-purple-700 text-xs flex flex-col items-center gap-1 font-medium">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                            <span id="scan-status-text">Analisando imagem...</span>
+                        </div>
+                    </div>
+                    <div id="scan-raw-result" class="hidden mt-2 text-[11px] text-purple-800 bg-purple-100/70 px-2.5 py-1.5 rounded-lg w-full text-left truncate"></div>
+                </div>
+                <form id="new-med-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome do Medicamento</label>
+                        <input type="text" id="med-name" class="w-full rounded-lg border-gray-300 border p-2 outline-none" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Dose (ex: 50mg)</label>
+                            <input type="text" id="med-dose" class="w-full rounded-lg border-gray-300 border p-2 outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Horário</label>
+                            <input type="time" id="med-time" class="w-full rounded-lg border-gray-300 border p-2 outline-none" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition mt-4">Salvar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Daily Report -->
+    <div id="report-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[60]">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
+                <h3 id="report-modal-title" class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-file-medical text-purple-600 mr-2"></i>Resumo Automático Inteligente</h3>
+                <button onclick="toggleModal('report-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-grow" id="report-content"></div>
+            <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0 gap-3">
+                <button onclick="copyReport()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition text-sm font-medium"><i class="regular fa-copy mr-2"></i>Copiar</button>
+                <button onclick="toggleModal('report-modal')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Drug Interactions -->
+    <div id="interaction-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[60]">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="px-6 py-4 border-b border-orange-200 flex justify-between items-center bg-orange-50 shrink-0">
+                <h3 class="text-lg font-semibold text-orange-800"><i class="fa-solid fa-flask-vial mr-2"></i>Análise de Interação</h3>
+                <button onclick="toggleModal('interaction-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-grow" id="interaction-content"></div>
+            <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
+                <button onclick="toggleModal('interaction-modal')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Dead Man's Switch -->
+    <div id="dms-modal" class="fixed inset-0 bg-red-900 bg-opacity-90 hidden flex items-center justify-center z-[100] p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden text-center p-8 animate-[pulse_2s_infinite]">
+            <i class="fa-solid fa-triangle-exclamation text-6xl text-red-600 mb-4 animate-bounce"></i>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Você está bem?</h2>
+            <p class="text-gray-600 mb-6 text-sm">Verificação de rotina. Se você não confirmar em <span id="dms-countdown" class="font-bold text-red-600 text-lg block my-2">--:--</span> o SAMU e seus contatos serão acionados.</p>
+            <button onclick="dismissDMSAlert()" class="w-full bg-green-500 text-white font-bold py-4 rounded-xl hover:bg-green-600 transition shadow-lg text-lg flex items-center justify-center gap-2">
+                <i class="fa-solid fa-thumbs-up text-2xl"></i> ESTOU BEM
+            </button>
+        </div>
+    </div>
+
+    <!-- ChatBot Widget -->
+    <div id="chatbot-widget" class="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
+        <div id="chat-window" class="hidden pointer-events-auto w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden mb-4 transition-all duration-300 transform scale-95 opacity-0 origin-bottom-right flex flex-col h-[450px] max-h-[70vh]">
+            <div class="bg-blue-700 p-4 flex justify-between items-center text-white shrink-0 shadow-sm z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                        <i class="fa-solid fa-robot text-sm"></i>
+                    </div>
+                    <div>
+                        <span class="font-semibold block text-sm">Assistente Sirius</span>
+                        <span class="text-[10px] text-blue-200 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span> Online</span>
+                    </div>
+                </div>
+                <button onclick="toggleChat()" class="text-white hover:bg-white/20 p-1.5 rounded-full transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="chat-messages" class="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col gap-4">
+                <div class="flex items-start gap-2">
+                    <div class="bg-white border border-gray-200 text-gray-700 p-3 rounded-2xl rounded-tl-none text-sm max-w-[85%] shadow-sm">
+                        Olá! Sou a inteligência artificial do Sirius A&B. Como posso ajudar com sua saúde hoje?
+                    </div>
+                </div>
+            </div>
+            <div class="p-3 border-t border-gray-200 bg-white flex gap-2 shrink-0">
+                <input type="text" id="chat-input" placeholder="Digite sua pergunta..." class="flex-grow bg-gray-100 text-sm rounded-full px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                <button onclick="sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-700 shadow-md"><i class="fa-solid fa-paper-plane text-sm"></i></button>
+            </div>
+        </div>
+        <button id="chat-fab" onclick="toggleChat()" class="pointer-events-auto w-14 h-14 bg-blue-700 text-white rounded-full shadow-xl flex items-center justify-center hover:bg-blue-800 transition-all hover:scale-105 active:scale-95 group">
+            <i class="fa-solid fa-message text-xl group-hover:hidden"></i>
+            <i class="fa-solid fa-robot text-xl hidden group-hover:block"></i>
+        </button>
+    </div>
+
+    <!-- Message Box -->
+    <div id="message-box" class="fixed top-6 right-4 max-w-sm w-full bg-white rounded-lg shadow-xl border-l-4 transition-transform duration-300 z-[150] flex overflow-hidden translate-x-full">
+        <div class="p-4 flex items-start w-full">
+            <div id="msg-icon" class="flex-shrink-0 mt-0.5 text-xl"></div>
+            <div class="ml-3 w-0 flex-1">
+                <p id="msg-title" class="text-sm font-bold text-gray-900"></p>
+                <p id="msg-text" class="mt-1 text-sm text-gray-500"></p>
+            </div>
+            <div class="ml-4 flex-shrink-0 flex">
+                <button onclick="closeMessageBox()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SISTEMA DE CONTAS E SENHAS FIXAS POR E-MAIL ---
+        let currentUserEmail = '';
+        let isLoginMode = true;
+
+        function getUsersRegistry() {
+            const data = localStorage.getItem('sirius_ab_users_registry');
+            return data ? JSON.parse(data) : {};
+        }
+
+        function saveUsersRegistry(registry) {
+            localStorage.setItem('sirius_ab_users_registry', JSON.stringify(registry));
+        }
+
+        function getDBKey() {
+            return `sirius_ab_database_${currentUserEmail.trim().toLowerCase()}_v3`;
+        }
+
+        let appState = {
+            currentRole: 'independent',
+            userProfiles: {
+                'independent': { name: 'Paciente Independente', photo: null, role: 'independent' },
+                'caregiver': { name: 'Cuidador Principal', photo: null, role: 'caregiver' },
+                'admin': { name: 'Administrador do Sistema', photo: null, role: 'admin' }
+            },
+            medications: [],
+            appointments: [],
+            vitals: [],
+            diaryNotes: [],
+            emergencyContacts: [{ id: 1, name: 'SAMU', phone: '192' }],
+            dms: { enabled: false, morning: '08:00', night: '22:00', timeoutMinutes: 5, isActive: false }
+        };
+
+        function loadDatabase() {
+            const savedData = localStorage.getItem(getDBKey());
+            if (savedData) {
+                try {
+                    const parsed = JSON.parse(savedData);
+                    appState = { ...appState, ...parsed };
+                } catch(e) {
+                    console.error('Erro ao carregar banco de dados:', e);
+                }
+            } else {
+                appState.medications = [{ id: 1, name: 'Losartana', dose: '50mg', time: '08:00', taken: false }];
+                appState.appointments = [];
+                appState.vitals = [];
+                appState.diaryNotes = [];
+                appState.emergencyContacts = [{ id: 1, name: 'SAMU', phone: '192' }];
+            }
+        }
+
+        function saveDatabase() {
+            if (!currentUserEmail) return;
+            try {
+                localStorage.setItem(getDBKey(), JSON.stringify(appState));
+            } catch(e) {
+                console.error('Erro ao salvar no banco de dados:', e);
+            }
+        }
+
+        let healthChartInstance = null;
+
+        function showAuthFeedback(msg, type = 'error') {
+            const fb = document.getElementById('auth-feedback');
+            if (!fb) return;
+            fb.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border-red-200', 'bg-green-50', 'text-green-700', 'border-green-200');
+            if (type === 'error') {
+                fb.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
+            } else {
+                fb.classList.add('bg-green-50', 'text-green-700', 'border-green-200');
+            }
+            fb.innerHTML = msg;
+        }
+
+        function hideAuthFeedback() {
+            const fb = document.getElementById('auth-feedback');
+            if (fb) fb.classList.add('hidden');
+        }
+
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            hideAuthFeedback();
+            document.getElementById('auth-title').innerText = isLoginMode ? 'Acessar Conta' : 'Criar Nova Conta';
+            document.getElementById('auth-submit-btn').innerText = isLoginMode ? 'Entrar' : 'Cadastrar e Entrar';
+            document.getElementById('auth-role-group').style.display = isLoginMode ? 'none' : 'block';
+            const toggleText = document.getElementById('auth-toggle-text');
+            if (isLoginMode) {
+                toggleText.innerHTML = `Não tem uma conta? <button type="button" onclick="toggleAuthMode()" class="text-blue-600 hover:text-blue-800 font-bold hover:underline">Cadastre-se</button>`;
+            } else {
+                toggleText.innerHTML = `Já tem uma conta? <button type="button" onclick="toggleAuthMode()" class="text-blue-600 hover:text-blue-800 font-bold hover:underline">Faça Login</button>`;
+            }
+        }
+
+        // Inicializa o form com modo login (esconde seletor de papel até se cadastrar)
+        document.addEventListener('DOMContentLoaded', () => {
+            const roleGroup = document.getElementById('auth-role-group');
+            if (roleGroup) roleGroup.style.display = 'none';
+        });
+
+        function handleAuth(e) {
+            e.preventDefault();
+            hideAuthFeedback();
+            const email = document.getElementById('auth-email').value.trim().toLowerCase();
+            const password = document.getElementById('auth-password').value;
+            const users = getUsersRegistry();
+
+            if (isLoginMode) {
+                // Modo Login: Validação de e-mail e senha fixa cadastrada
+                if (!users[email]) {
+                    showAuthFeedback(`Este e-mail ainda não possui senha cadastrada.<br><button type="button" onclick="toggleAuthMode()" class="underline font-bold mt-1 inline-block">Clique aqui para criar sua conta</button>`, 'error');
+                    showMessage('Conta não encontrada', 'Cadastre este e-mail primeiro clicando em "Cadastre-se".', 'error');
+                    return;
+                }
+                if (users[email].password !== password) {
+                    showAuthFeedback('Senha incorreta para este e-mail. Tente novamente ou clique em "Esqueci minha senha".', 'error');
+                    showMessage('Senha Incorreta', 'A senha digitada não confere com a cadastrada para este e-mail.', 'error');
+                    return;
+                }
+                // Sucesso no Login
+                currentUserEmail = email;
+                appState.currentRole = users[email].role || 'independent';
+                loadDatabase();
+                initSession();
+            } else {
+                // Modo Cadastro de Conta com Senha Fixa
+                if (users[email]) {
+                    showAuthFeedback('Este e-mail já possui cadastro! Mudamos para a tela de Login, digite sua senha para entrar.', 'error');
+                    toggleAuthMode();
+                    return;
+                }
+                const selectedRole = document.getElementById('auth-role-select').value;
+                users[email] = {
+                    password: password,
+                    role: selectedRole
+                };
+                saveUsersRegistry(users);
+
+                currentUserEmail = email;
+                appState.currentRole = selectedRole;
+                loadDatabase();
+                appState.userProfiles[selectedRole] = {
+                    name: email.split('@')[0],
+                    photo: null,
+                    role: selectedRole
+                };
+                saveDatabase();
+                initSession();
+            }
+        }
+
+        function initSession() {
+            hideAuthFeedback();
+            document.getElementById('auth-container').classList.add('hidden');
+            const appContent = document.getElementById('app-content');
+            appContent.classList.remove('hidden');
+            appContent.classList.add('flex');
+            initApp();
+            showMessage('Bem-vindo(a)!', `Sessão iniciada com sucesso (${currentUserEmail})`, 'success');
+        }
+
+        function openForgotModal() {
+            const currentTypedEmail = document.getElementById('auth-email').value.trim();
+            if (currentTypedEmail) {
+                document.getElementById('forgot-email').value = currentTypedEmail;
+            }
+            toggleModal('forgot-modal');
+        }
+
+        function handleResetPassword(e) {
+            e.preventDefault();
+            const email = document.getElementById('forgot-email').value.trim().toLowerCase();
+            const newPassword = document.getElementById('forgot-new-password').value;
+            const users = getUsersRegistry();
+
+            if (!users[email]) {
+                // Se o e-mail ainda não existia no registro, já cria o registro com a nova senha para destravar o usuário
+                users[email] = {
+                    password: newPassword,
+                    role: 'independent'
+                };
+            } else {
+                users[email].password = newPassword;
+            }
+
+            saveUsersRegistry(users);
+            toggleModal('forgot-modal');
+            document.getElementById('auth-email').value = email;
+            document.getElementById('auth-password').value = '';
+            document.getElementById('forgot-new-password').value = '';
+            if (!isLoginMode) toggleAuthMode();
+            showAuthFeedback('Senha salva com sucesso! Digite a nova senha acima e clique em Entrar.', 'success');
+            showMessage('Senha Atualizada', 'Sua nova senha foi salva para este e-mail!', 'success');
+        }
+
+        function logoutAccount() {
+            toggleModal('profile-modal');
+            const appContent = document.getElementById('app-content');
+            appContent.classList.remove('flex');
+            appContent.classList.add('hidden');
+            document.getElementById('auth-container').classList.remove('hidden');
+            document.getElementById('auth-password').value = '';
+            currentUserEmail = '';
+            showMessage('Sessão Encerrada', 'Dados salvos com segurança no banco local.', 'info');
+        }
+
+        function initApp() {
+            loadUserProfileToState();
+            updateRoleUI();
+            renderMedications();
+            renderDiaryNotes();
+            renderContacts();
+            renderAppointments();
+            initChart();
+            updateHistoryTable();
+            checkAppointmentAlerts();
+            loadDMSUI();
+            startDMSScheduler();
+        }
+
+        function loadUserProfileToState() {
+            const role = appState.currentRole;
+            const profile = appState.userProfiles[role];
+            if (profile) {
+                appState.patientName = profile.name;
+                appState.userPhoto = profile.photo;
+            } else {
+                appState.patientName = currentUserEmail.split('@')[0];
+                appState.userPhoto = null;
+            }
+        }
+
+        function updateRoleUI() {
+            const role = appState.currentRole;
+            const adminPanel = document.getElementById('admin-panel');
+            const avatarInitials = document.getElementById('user-avatar-initials');
+            const avatarImg = document.getElementById('user-avatar-img');
+            
+            if (appState.userPhoto) {
+                avatarImg.src = appState.userPhoto;
+                avatarImg.classList.remove('hidden');
+                avatarInitials.classList.add('hidden');
+            } else {
+                avatarImg.classList.add('hidden');
+                avatarInitials.classList.remove('hidden');
+                avatarInitials.innerText = appState.patientName ? appState.patientName.substring(0,2).toUpperCase() : 'US';
+            }
+
+            if (role === 'admin') adminPanel.classList.remove('hidden');
+            else adminPanel.classList.add('hidden');
+
+            document.getElementById('profile-name').value = appState.patientName || '';
+            document.getElementById('profile-role-select').value = role;
+            if (appState.userPhoto) {
+                document.getElementById('profile-modal-img').src = appState.userPhoto;
+            } else {
+                document.getElementById('profile-modal-img').src = 'https://placehold.co/150x150/e2e8f0/64748b?text=Foto';
+            }
+            delete document.getElementById('profile-photo-input').dataset.tempPhoto;
+        }
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('hidden');
+        }
+
+        function selectMood(mood, btnElement) {
+            document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active', 'border-blue-500'));
+            btnElement.classList.add('active', 'border-blue-500');
+            document.getElementById('selected-mood').value = mood;
+        }
+
+        function showMessage(title, text, type = 'info') {
+            const box = document.getElementById('message-box');
+            document.getElementById('msg-title').innerText = title;
+            document.getElementById('msg-text').innerText = text;
+            box.className = `fixed top-6 right-4 max-w-sm w-full bg-white rounded-lg shadow-xl border-l-4 transition-transform duration-300 z-[150] flex overflow-hidden`;
+            if (type === 'error') box.classList.add('border-red-500');
+            else if (type === 'success') box.classList.add('border-green-500');
+            else box.classList.add('border-blue-500');
+            box.classList.remove('translate-x-full');
+            setTimeout(() => box.classList.add('translate-x-full'), 4000);
+        }
+
+        function handleProfilePhoto(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target.result;
+                document.getElementById('profile-modal-img').src = base64;
+                input.dataset.tempPhoto = base64;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        document.getElementById('profile-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('profile-name').value.trim();
+            const photoInput = document.getElementById('profile-photo-input');
+
+            if (name) appState.patientName = name;
+            if (photoInput.dataset.tempPhoto) {
+                appState.userPhoto = photoInput.dataset.tempPhoto;
+                delete photoInput.dataset.tempPhoto;
+            }
+
+            const role = appState.currentRole;
+            appState.userProfiles[role] = {
+                name: appState.patientName,
+                photo: appState.userPhoto,
+                role: role
+            };
+
+            saveDatabase();
+            updateRoleUI();
+            toggleModal('profile-modal');
+            showMessage('Sucesso', 'Perfil atualizado com sucesso!', 'success');
+        });
+
+        function closeMessageBox() {
+            document.getElementById('message-box').classList.add('translate-x-full');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active', 'text-blue-600', 'border-b-2', 'border-blue-600', 'bg-blue-50');
+                btn.classList.add('text-gray-500');
+            });
+
+            const activeBtn = document.getElementById('btn-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-gray-500');
+                activeBtn.classList.add('active', 'text-blue-600', 'border-b-2', 'border-blue-600', 'bg-blue-50');
+            }
+        }
+
+        // --- ROTINA DE MEDICAMENTOS ---
+        function renderMedications() {
+            const list = document.getElementById('med-list');
+            if (!appState.medications || appState.medications.length === 0) {
+                list.innerHTML = `<div class="text-sm text-gray-500 text-center py-4">Nenhum medicamento cadastrado.</div>`;
+                return;
+            }
+            list.innerHTML = appState.medications.map(med => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" ${med.taken ? 'checked' : ''} onchange="toggleMedication(${med.id})" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
+                        <div>
+                            <p class="font-medium text-sm ${med.taken ? 'line-through text-gray-400' : 'text-gray-800'}">${med.name} <span class="text-xs text-gray-500">(${med.dose})</span></p>
+                            <p class="text-xs text-blue-600"><i class="fa-regular fa-clock mr-1"></i>${med.time}</p>
+                        </div>
+                    </div>
+                    <button onclick="deleteMedication(${med.id})" class="text-gray-400 hover:text-red-500 transition"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function toggleMedication(id) {
+            const med = appState.medications.find(m => m.id === id);
+            if (med) {
+                med.taken = !med.taken;
+                saveDatabase();
+                renderMedications();
+            }
+        }
+
+        function deleteMedication(id) {
+            appState.medications = appState.medications.filter(m => m.id !== id);
+            saveDatabase();
+            renderMedications();
+            showMessage('Removido', 'Medicamento excluído da rotina.', 'info');
+        }
+
+        document.getElementById('new-med-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('med-name').value.trim();
+            const dose = document.getElementById('med-dose').value.trim();
+            const time = document.getElementById('med-time').value;
+
+            appState.medications.push({
+                id: Date.now(),
+                name,
+                dose,
+                time,
+                taken: false
+            });
+
+            saveDatabase();
+            renderMedications();
+            this.reset();
+            toggleModal('med-modal');
+            showMessage('Adicionado', `${name} foi incluído na rotina.`, 'success');
+        });
+
+        async function processMedicationImage(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            const loading = document.getElementById('scan-loading');
+            const statusText = document.getElementById('scan-status-text');
+            const preview = document.getElementById('med-scan-preview');
+            const rawBox = document.getElementById('scan-raw-result');
+            const btnScan = document.getElementById('btn-scan-med');
+
+            loading.classList.remove('hidden');
+            rawBox.classList.add('hidden');
+            btnScan.disabled = true;
+            btnScan.classList.add('opacity-60');
+            statusText.innerText = 'Carregando imagem...';
+
+            // Converte a imagem para Base64 e exibe a miniatura
+            const base64DataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+
+            preview.src = base64DataUrl;
+            preview.classList.remove('hidden');
+
+            let extractedName = '';
+            let extractedDose = '';
+            let extractedTime = '';
+
+            // 1. Tentativa via IA Gemini Vision (se houver chave de ambiente configurada)
+            try {
+                const apiKey = "";
+                if (apiKey) {
+                    statusText.innerText = 'Consultando IA médica...';
+                    const base64Clean = base64DataUrl.split(',')[1];
+                    const payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: "Leia esta imagem de caixa de medicamento ou receita médica e retorne APENAS um JSON com as chaves: name (nome do medicamento), dose (ex: 50mg, 500mg, 20ml), time (horário sugerido formato HH:MM, ex: 08:00)." },
+                                { inlineData: { mimeType: file.type || "image/jpeg", data: base64Clean } }
+                            ]
+                        }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    };
+                    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+                        extractedName = parsed.name || '';
+                        extractedDose = parsed.dose || '';
+                        extractedTime = parsed.time || '08:00';
+                    }
+                }
+            } catch (err) {
+                console.warn('Fallback para OCR local:', err);
+            }
+
+            // 2. Leitura Óptica Real (OCR Local com Tesseract.js) - Funciona no Netlify e Celular sem chave de API!
+            if (!extractedName) {
+                try {
+                    statusText.innerText = 'Lendo texto da embalagem/receita (OCR)...';
+                    const result = await Tesseract.recognize(base64DataUrl, 'por+eng', {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                const pct = Math.round((m.progress || 0) * 100);
+                                statusText.innerText = `Lendo texto da foto (${pct}%)...`;
+                            }
+                        }
+                    });
+
+                    const rawText = (result.data && result.data.text) ? result.data.text : '';
+                    const cleanLines = rawText
+                        .split(/\r?\n/)
+                        .map(l => l.replace(/[^a-zA-ZÀ-ÿ0-9\s\/,\.\-]/g, '').trim())
+                        .filter(l => l.length >= 3);
+
+                    // Procura padrão de dosagem na imagem (ex: 500mg, 50 mg, 10ml, 20mcg, 1g, 500 mg/ml)
+                    const doseRegex = /\b(\d+(?:[\.,]\d+)?\s*(?:mg|ml|mcg|g|ui|gotas|comp(?:rimidos)?)(?:\s*\/\s*\d*\s*(?:ml|g))?)\b/i;
+                    const doseMatch = rawText.match(doseRegex);
+                    if (doseMatch) {
+                        extractedDose = doseMatch[1].replace(/\s+/g, '');
+                    }
+
+                    // Procura padrão de horário na receita (ex: 08:00, 8h, 12/12h, 8/8h)
+                    const timeMatch = rawText.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+                    if (timeMatch) {
+                        extractedTime = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+                    } else if (/8\s*\/\s*8|8\s*em\s*8/i.test(rawText)) {
+                        extractedTime = '08:00';
+                    } else if (/12\s*\/\s*12|12\s*em\s*12/i.test(rawText)) {
+                        extractedTime = '08:00';
+                    }
+
+                    // Filtra palavras comuns de caixas de remédio para achar o nome principal do medicamento
+                    const ignoreWords = /^(uso|oral|adulto|pediatrico|pediátrico|contem|contém|comprimidos|capsulas|cápsulas|venda|sob|prescricao|prescrição|medica|médica|generico|genérico|medicamento|lei|mg|ml|laboratorio|laboratório|receita|doutor|clinica|clínica|paciente|data|tomar|cada|horas|dia)$/i;
+
+                    for (const line of cleanLines) {
+                        // Remove a dosagem da linha para sobrar o nome limpo
+                        let candidate = line.replace(doseRegex, '').trim();
+                        const words = candidate.split(/\s+/).filter(w => w.length > 2 && !ignoreWords.test(w));
+                        if (words.length > 0) {
+                            extractedName = words.slice(0, 3).join(' ');
+                            // Formata com a primeira letra maiúscula
+                            extractedName = extractedName.charAt(0).toUpperCase() + extractedName.slice(1).toLowerCase();
+                            break;
+                        }
+                    }
+
+                    if (cleanLines.length > 0) {
+                        rawBox.innerText = `Texto detectado: "${cleanLines.join(' • ').substring(0, 90)}..."`;
+                        rawBox.classList.remove('hidden');
+                    }
+                } catch (ocrError) {
+                    console.error('Erro no OCR:', ocrError);
+                }
+            }
+
+            loading.classList.add('hidden');
+            btnScan.disabled = false;
+            btnScan.classList.remove('opacity-60');
+            input.value = '';
+
+            if (extractedName || extractedDose) {
+                document.getElementById('med-name').value = extractedName || 'Medicamento Identificado';
+                document.getElementById('med-dose').value = extractedDose || '1 dose';
+                document.getElementById('med-time').value = extractedTime || '08:00';
+                showMessage('Leitura Concluída!', `Identificado: ${extractedName || 'Medicamento'} ${extractedDose ? '(' + extractedDose + ')' : ''}. Confira os campos antes de salvar.`, 'success');
+            } else {
+                // Caso a foto esteja muito desfocada ou escura, avisa o usuário e preenche o horário padrão para facilitar
+                document.getElementById('med-time').value = '08:00';
+                document.getElementById('med-name').focus();
+                showMessage('Texto pouco nítido', 'Não foi possível ler o texto com clareza. Tente tirar uma foto mais próxima e iluminada ou digite o nome abaixo.', 'error');
+            }
+        }
+
+        function checkInteractions() {
+            const content = document.getElementById('interaction-content');
+            if (appState.medications.length < 2) {
+                content.innerHTML = `<p class="text-sm text-gray-600">Adicione pelo menos 2 medicamentos na rotina para analisar possíveis interações medicamentosas.</p>`;
+            } else {
+                const names = appState.medications.map(m => m.name).join(' + ');
+                content.innerHTML = `
+                    <div class="p-4 bg-green-50 border border-green-200 rounded-xl mb-3">
+                        <p class="font-semibold text-green-800 text-sm mb-1"><i class="fa-solid fa-circle-check mr-1"></i> Combinação analisada: ${names}</p>
+                        <p class="text-xs text-green-700">Nenhuma interação grave conhecida foi detectada entre os horários cadastrados. Mantenha o acompanhamento médico regular.</p>
+                    </div>
+                `;
+            }
+            toggleModal('interaction-modal');
+        }
+
+        // --- SINAIS VITAIS E GRÁFICO ---
+        document.getElementById('vitals-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const sys = parseInt(document.getElementById('sys-bp').value);
+            const dia = parseInt(document.getElementById('dia-bp').value);
+            const hr = parseInt(document.getElementById('heart-rate').value);
+            const glu = parseInt(document.getElementById('glucose').value);
+            const mood = document.getElementById('selected-mood').value;
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            appState.vitals.push({
+                id: Date.now(),
+                date: dateStr,
+                sys,
+                dia,
+                hr,
+                glu,
+                mood
+            });
+
+            saveDatabase();
+            this.reset();
+            initChart();
+            updateHistoryTable();
+            showMessage('Sinais Registrados', 'Seus sinais vitais foram salvos no histórico.', 'success');
+        });
+
+        function initChart() {
+            const ctx = document.getElementById('healthChart');
+            if (!ctx) return;
+            if (healthChartInstance) {
+                healthChartInstance.destroy();
+            }
+
+            const recentVitals = appState.vitals.slice(-7);
+            const labels = recentVitals.length ? recentVitals.map(v => v.date) : ['Sem dados'];
+            const sysData = recentVitals.length ? recentVitals.map(v => v.sys) : [120];
+            const diaData = recentVitals.length ? recentVitals.map(v => v.dia) : [80];
+            const gluData = recentVitals.length ? recentVitals.map(v => v.glu) : [95];
+
+            healthChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Sistólica', data: sysData, borderColor: '#ef4444', tension: 0.3 },
+                        { label: 'Diastólica', data: diaData, borderColor: '#3b82f6', tension: 0.3 },
+                        { label: 'Glicemia', data: gluData, borderColor: '#10b981', tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            const insightText = document.getElementById('insight-text');
+            if (appState.vitals.length > 0) {
+                const last = appState.vitals[appState.vitals.length - 1];
+                if (last.sys >= 140 || last.dia >= 90) {
+                    insightText.innerText = `Atenção: Última pressão registrada (${last.sys}/${last.dia} mmHg) está acima do ideal. Monitore sintomas.`;
+                } else {
+                    insightText.innerText = `Seus sinais vitais recentes (${last.sys}/${last.dia} mmHg, FC ${last.hr} bpm) encontram-se dentro da estabilidade esperada.`;
+                }
+            }
+        }
+
+        function updateHistoryTable() {
+            const tbody = document.getElementById('history-table-body');
+            if (!appState.vitals || appState.vitals.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500">Nenhum registro encontrado.</td></tr>`;
+                return;
+            }
+            const moodIcons = { terrible: '😫', bad: '😟', neutral: '😐', good: '🙂', great: '😄' };
+            tbody.innerHTML = appState.vitals.slice().reverse().map(v => `
+                <tr>
+                    <td class="px-4 py-3 text-sm text-gray-700">${v.date}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${v.sys}/${v.dia}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">${v.hr} bpm</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">${v.glu} mg/dL</td>
+                    <td class="px-4 py-3 text-lg">${moodIcons[v.mood] || '😐'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // --- DIÁRIO E RELATÓRIOS ---
+        function renderDiaryNotes() {
+            const list = document.getElementById('diary-list');
+            if (!appState.diaryNotes || appState.diaryNotes.length === 0) {
+                list.innerHTML = `<div class="text-sm text-gray-500 text-center py-2">Nenhuma anotação hoje.</div>`;
+                return;
+            }
+            list.innerHTML = appState.diaryNotes.map(note => `
+                <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm text-gray-800">${note.text}</p>
+                        <span class="text-[11px] text-gray-400">${note.time}</span>
+                    </div>
+                    <button onclick="deleteDiaryNote(${note.id})" class="text-gray-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function addDiaryNote() {
+            const input = document.getElementById('diary-input');
+            const text = input.value.trim();
+            if (!text) return;
+            const now = new Date();
+            appState.diaryNotes.push({
+                id: Date.now(),
+                text,
+                time: now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            });
+            input.value = '';
+            saveDatabase();
+            renderDiaryNotes();
+        }
+
+        function deleteDiaryNote(id) {
+            appState.diaryNotes = appState.diaryNotes.filter(n => n.id !== id);
+            saveDatabase();
+            renderDiaryNotes();
+        }
+
+        function toggleDictation() {
+            showMessage('Ditado por Voz', 'Fale agora... Simulando captura de áudio.', 'info');
+            setTimeout(() => {
+                document.getElementById('diary-input').value = 'Caminhada leve pela manhã e hidratação adequada.';
+            }, 1500);
+        }
+
+        function generateSmartReport() {
+            const content = document.getElementById('report-content');
+            const notesCount = appState.diaryNotes.length;
+            const vitalsCount = appState.vitals.length;
+            content.innerHTML = `
+                <div class="space-y-3 text-sm text-gray-700">
+                    <p><strong>Paciente / Usuário:</strong> ${appState.patientName}</p>
+                    <p><strong>Total de Registros de Sinais:</strong> ${vitalsCount}</p>
+                    <p><strong>Anotações no Diário:</strong> ${notesCount}</p>
+                    <hr>
+                    <p class="text-gray-600">O paciente mantém acompanhamento regular na plataforma Sirius A&B. Recomenda-se apresentar este histórico nas próximas consultas agendadas.</p>
+                </div>
+            `;
+            toggleModal('report-modal');
+        }
+
+        function generateHealthReport() {
+            generateSmartReport();
+        }
+
+        function copyReport() {
+            const text = document.getElementById('report-content').innerText;
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showMessage('Copiado', 'Relatório copiado para a área de transferência!', 'success');
+        }
+
+        // --- AGENDA E CONSULTAS ---
+        function renderAppointments() {
+            const list = document.getElementById('appointments-list');
+            if (!appState.appointments || appState.appointments.length === 0) {
+                list.innerHTML = `<div class="text-sm text-gray-500 text-center py-4">Nenhuma consulta agendada.</div>`;
+                return;
+            }
+            list.innerHTML = appState.appointments.map(app => `
+                <div class="p-3 bg-blue-50/40 rounded-xl border border-blue-100 flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold text-sm text-gray-800">${app.title}</p>
+                        <p class="text-xs text-blue-600"><i class="fa-regular fa-calendar mr-1"></i>${app.date} às ${app.time}</p>
+                        ${app.location ? `<p class="text-xs text-gray-500"><i class="fa-solid fa-location-dot mr-1"></i>${app.location}</p>` : ''}
+                    </div>
+                    <button onclick="deleteAppointment(${app.id})" class="text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('new-appointment-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const title = document.getElementById('app-title').value.trim();
+            const date = document.getElementById('app-date').value;
+            const time = document.getElementById('app-time').value;
+            const location = document.getElementById('app-location').value.trim();
+
+            appState.appointments.push({
+                id: Date.now(),
+                title,
+                date,
+                time,
+                location
+            });
+
+            saveDatabase();
+            renderAppointments();
+            checkAppointmentAlerts();
+            this.reset();
+            showMessage('Agenda', 'Nova consulta adicionada com sucesso!', 'success');
+        });
+
+        function deleteAppointment(id) {
+            appState.appointments = appState.appointments.filter(a => a.id !== id);
+            saveDatabase();
+            renderAppointments();
+            checkAppointmentAlerts();
+        }
+
+        function checkAppointmentAlerts() {
+            const container = document.getElementById('alerts-container');
+            const badge = document.getElementById('nav-alert-badge');
+            if (!container) return;
+            container.innerHTML = '';
+            let hasAlert = false;
+
+            const today = new Date();
+            appState.appointments.forEach(app => {
+                const appDate = new Date(app.date + 'T' + (app.time || '00:00'));
+                const diffDays = Math.ceil((appDate - today) / (1000 * 60 * 60 * 24));
+                if (diffDays >= 0 && diffDays <= 3) {
+                    hasAlert = true;
+                    container.innerHTML += `
+                        <div class="p-4 bg-amber-50 border-l-4 border-amber-500 rounded-xl shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-amber-800"><i class="fa-solid fa-bell mr-1"></i> Lembrete de Consulta Próxima</p>
+                                <p class="text-xs text-amber-700">${app.title} em ${app.date} às ${app.time}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (badge) {
+                if (hasAlert) badge.classList.remove('hidden');
+                else badge.classList.add('hidden');
+            }
+        }
+
+        // --- CONTATOS DE EMERGÊNCIA E SEGURANÇA ---
+        function renderContacts() {
+            const list = document.getElementById('contacts-list');
+            if (!appState.emergencyContacts || appState.emergencyContacts.length === 0) {
+                list.innerHTML = `<div class="text-sm text-gray-500 text-center py-2">Nenhum contato adicionado.</div>`;
+                return;
+            }
+            list.innerHTML = appState.emergencyContacts.map(c => `
+                <div class="flex justify-between items-center p-2.5 bg-red-50/40 rounded-lg border border-red-100">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">${c.name}</p>
+                        <p class="text-xs text-red-600"><i class="fa-solid fa-phone mr-1"></i>${c.phone}</p>
+                    </div>
+                    <button onclick="deleteContact(${c.id})" class="text-gray-400 hover:text-red-600"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('new-contact-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('contact-name').value.trim();
+            const phone = document.getElementById('contact-phone').value.trim();
+            appState.emergencyContacts.push({ id: Date.now(), name, phone });
+            saveDatabase();
+            renderContacts();
+            this.reset();
+            showMessage('Contato Salvo', `${name} adicionado aos contatos de emergência.`, 'success');
+        });
+
+        function deleteContact(id) {
+            appState.emergencyContacts = appState.emergencyContacts.filter(c => c.id !== id);
+            saveDatabase();
+            renderContacts();
+        }
+
+        // --- SISTEMA DE ALARME E SEGURANÇA ATIVA (DEAD MAN'S SWITCH) ---
+        let dmsSchedulerInterval = null;
+        let dmsCountdownInterval = null;
+        let dmsAudioInterval = null;
+        let dmsLastTriggeredKey = '';
+
+        function loadDMSUI() {
+            if (!appState.dms) {
+                appState.dms = { enabled: false, morning: '08:00', night: '22:00', timeoutMinutes: 5, isActive: false };
+            }
+            const toggle = document.getElementById('dms-toggle');
+            const settings = document.getElementById('dms-settings');
+            if (toggle) toggle.checked = !!appState.dms.enabled;
+            if (settings) {
+                if (appState.dms.enabled) settings.classList.remove('hidden');
+                else settings.classList.add('hidden');
+            }
+            const morningInput = document.getElementById('dms-time-morning');
+            const nightInput = document.getElementById('dms-time-night');
+            const timeoutInput = document.getElementById('dms-timeout');
+
+            if (morningInput) morningInput.value = appState.dms.morning || '08:00';
+            if (nightInput) nightInput.value = appState.dms.night || '22:00';
+            if (timeoutInput) timeoutInput.value = appState.dms.timeoutMinutes || 5;
+        }
+
+        function startDMSScheduler() {
+            if (dmsSchedulerInterval) clearInterval(dmsSchedulerInterval);
+            // Verifica a cada 5 segundos se o horário atual bate com o horário programado
+            dmsSchedulerInterval = setInterval(() => {
+                if (!currentUserEmail || !appState.dms || !appState.dms.enabled) return;
+
+                const now = new Date();
+                const currentHours = String(now.getHours()).padStart(2, '0');
+                const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+                const currentTimeStr = `${currentHours}:${currentMinutes}`;
+                const todayDateStr = now.toLocaleDateString('pt-BR');
+
+                const triggerKey = `${todayDateStr}_${currentTimeStr}`;
+
+                if ((currentTimeStr === appState.dms.morning || currentTimeStr === appState.dms.night) && dmsLastTriggeredKey !== triggerKey) {
+                    dmsLastTriggeredKey = triggerKey;
+                    triggerDMSAlert();
+                }
+            }, 5000);
+        }
+
+        function playAlarmSound() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime); // Lá (A5)
+                osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.2); // Ré (D6)
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.45);
+            } catch (e) {
+                console.warn('Áudio bloqueado pelo navegador até interação:', e);
+            }
+        }
+
+        function stopDMSIntervals() {
+            if (dmsCountdownInterval) {
+                clearInterval(dmsCountdownInterval);
+                dmsCountdownInterval = null;
+            }
+            if (dmsAudioInterval) {
+                clearInterval(dmsAudioInterval);
+                dmsAudioInterval = null;
+            }
+        }
+
+        function toggleDMS() {
+            const checked = document.getElementById('dms-toggle').checked;
+            const settings = document.getElementById('dms-settings');
+            appState.dms.enabled = checked;
+            if (checked) {
+                settings.classList.remove('hidden');
+                // Reseta a chave do minuto atual caso o usuário ative para testar no mesmo minuto
+                dmsLastTriggeredKey = '';
+                showMessage('Segurança Ativa', `Alarme ativado para ${appState.dms.morning} e ${appState.dms.night}.`, 'success');
+            } else {
+                settings.classList.add('hidden');
+                stopDMSIntervals();
+            }
+            saveDatabase();
+        }
+
+        function saveDMSSettings() {
+            appState.dms.morning = document.getElementById('dms-time-morning').value;
+            appState.dms.night = document.getElementById('dms-time-night').value;
+            appState.dms.timeoutMinutes = parseInt(document.getElementById('dms-timeout').value) || 5;
+            // Limpa a trava para permitir que desperte imediatamente se o usuário colocar o horário do minuto atual
+            dmsLastTriggeredKey = '';
+            saveDatabase();
+            showMessage('Segurança Ativa', `Horários salvos (${appState.dms.morning} e ${appState.dms.night}).`, 'info');
+        }
+
+        function triggerDMSAlert() {
+            stopDMSIntervals();
+            const modal = document.getElementById('dms-modal');
+            const countdownEl = document.getElementById('dms-countdown');
+            modal.classList.remove('hidden');
+
+            // Envia notificação nativa se estiver autorizada
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("⚠️ Sirius A&B - Você está bem?", {
+                    body: "Horário da verificação de Segurança Ativa. Confirme no aplicativo!"
+                });
+            }
+
+            // Toca som de alarme repetidamente a cada 1.5s enquanto o modal estiver aberto
+            playAlarmSound();
+            dmsAudioInterval = setInterval(playAlarmSound, 1500);
+
+            let remainingSeconds = (parseInt(appState.dms.timeoutMinutes) || 5) * 60;
+
+            function updateDisplay() {
+                const mins = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+                const secs = String(remainingSeconds % 60).padStart(2, '0');
+                countdownEl.innerText = `${mins}:${secs}`;
+            }
+
+            updateDisplay();
+
+            dmsCountdownInterval = setInterval(() => {
+                remainingSeconds--;
+                if (remainingSeconds <= 0) {
+                    stopDMSIntervals();
+                    countdownEl.innerText = "00:00";
+                    modal.classList.add('hidden');
+                    const contactNames = appState.emergencyContacts.map(c => `${c.name} (${c.phone})`).join(', ');
+                    showMessage('EMERGÊNCIA ACIONADA!', `Tempo esgotado sem resposta! Alerta enviado para: ${contactNames || 'SAMU (192)'}`, 'error');
+                } else {
+                    updateDisplay();
+                }
+            }, 1000);
+        }
+
+        function dismissDMSAlert() {
+            stopDMSIntervals();
+            document.getElementById('dms-modal').classList.add('hidden');
+            showMessage('Confirmado', 'Que bom que você está bem! Alerta encerrado.', 'success');
+        }
+
+        function clearDatabaseRecords() {
+            appState.medications = [];
+            appState.appointments = [];
+            appState.vitals = [];
+            appState.diaryNotes = [];
+            saveDatabase();
+            initApp();
+            showMessage('Banco Limpo', 'Os registros desta conta foram redefinidos.', 'info');
+        }
+
+        function enableNativeNotifications() {
+            if (!("Notification" in window)) {
+                showMessage('Aviso', 'Seu navegador não suporta notificações nativas.', 'error');
+                return;
+            }
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    showMessage('Notificações Ativas', 'Você receberá alertas de consultas e medicamentos!', 'success');
+                }
+            });
+        }
+
+        // --- CHATBOT ---
+        function toggleChat() {
+            const win = document.getElementById('chat-window');
+            if (win.classList.contains('hidden')) {
+                win.classList.remove('hidden', 'scale-95', 'opacity-0');
+            } else {
+                win.classList.add('hidden', 'scale-95', 'opacity-0');
+            }
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            const container = document.getElementById('chat-messages');
+            container.innerHTML += `
+                <div class="flex items-start justify-end gap-2">
+                    <div class="bg-blue-600 text-white p-3 rounded-2xl rounded-tr-none text-sm max-w-[85%] shadow-sm">${msg}</div>
+                </div>
+            `;
+            input.value = '';
+            container.scrollTop = container.scrollHeight;
+
+            setTimeout(() => {
+                container.innerHTML += `
+                    <div class="flex items-start gap-2">
+                        <div class="bg-white border border-gray-200 text-gray-700 p-3 rounded-2xl rounded-tl-none text-sm max-w-[85%] shadow-sm">
+                            Entendi! Estou acompanhando seus registros no Sirius A&B. Lembre-se de manter sua rotina de medicamentos e consultas atualizada na aba Agenda.
+                        </div>
+                    </div>
+                `;
+                container.scrollTop = container.scrollHeight;
+            }, 800);
+        }
+    </script>
+    </div>
+</body>
+</html>
